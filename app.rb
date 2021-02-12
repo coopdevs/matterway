@@ -1,15 +1,21 @@
 require 'sinatra'
+require 'net/http'
+require 'httplog'
 
-uri = URI('https://coopdevs.cloud.mattermost.com/hooks/ywzoftw9nj8ougbueyy4ds4t6y')
+TARGET_URL = URI(ENV['TARGET_URL'])
+PIPELINE_URL = 'https://dashboard.heroku.com/pipelines/fe96351a-96ed-4b26-8076-57930ac6d33a'
 
 post '/' do
-  webhook = JSON.parse(request.body.read)
-  body = { text: message_from(webhook) }.to_json
+  body = request.body.read
+  return status 400 if body == ''
 
-  response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+  webhook = JSON.parse(body)
+  mattermost_body = { text: message_from(webhook) }.to_json
+
+  response = Net::HTTP.start(TARGET_URL.host, TARGET_URL.port, use_ssl: true) do |http|
     req = Net::HTTP::Post.new(uri)
     req['Content-Type'] = 'application/json'
-    req.body = body
+    req.body = mattermost_body
     http.request(req)
   end
 
@@ -18,7 +24,9 @@ end
 
 def message_from(body)
   data = body['data']
+  user = data['user']
+  slug = data['slug']
   app = data['app']
 
-  "#{user['email']} deployed `#{slug['commit']}` to #{app['name']}" 
+  "#{user['email']} deployed `#{slug['commit']}` to [#{app['name']}](#{PIPELINE_URL})"
 end
